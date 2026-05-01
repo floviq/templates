@@ -1,8 +1,26 @@
 # floviq · 001-pre-market-briefing · v0.1.0-free
 
 Released: 2026-04-29
+Last patched: 2026-05-01
 
 這是 floviq 第一個對外發行的 n8n template，採 Free 版定位（lead magnet）。
+
+---
+
+## Patches (in-version updates · 不 bump 版本)
+
+純文字 / metadata 修正會直接 patch 到既有版本目錄，不另發新版本（無行為變化）。Workflow JSON 內 node 邏輯與 schema 變動才會 bump。
+
+### 2026-05-01 · cost numbers + email patch
+
+- **`hello@floviq.com` → `support@floviq.tw`** 跨 LICENSE / README / RELEASE-NOTES — 舊 email 從未啟用會 bounce，已切到實際 inbox
+- **OpenAI 成本估算對齊 tiktoken 精確算** 跨 README / RELEASE-NOTES / `prompts/summary-prompt.md` / `workflow-free.json` sticky + node notes：
+  - 舊（char heuristic 估算）：每次執行 `~$0.001 USD`、月成本 `~$0.022 USD`、`NT$ 0.7`
+  - 新（tiktoken 對 cl100k_base 精確算）：每次執行 `~$0.0004 USD`、月成本 `~$0.009 USD`、`NT$ 0.3`
+  - 根因：cl100k_base 對 zh-TW + JSON 實測 0.4–0.6 tokens/char，舊估算用 en-only 1.3 ratio 高估約 2×。**實際成本只低不高**，不影響你的 OpenAI 帳戶儲值規劃（建議的 $5 USD 仍夠用 1 年以上）。
+- 重新打包 distribution zip + 更新 sha256
+
+未動：`workflow-free.json` 任何 node 邏輯 / schema / 排程 / 推播格式。已導入並啟用此 workflow 的客戶 **無需任何動作**，現有部署繼續正常運作。
 
 ---
 
