@@ -15,7 +15,7 @@
 | `max_tokens` | `1500` | 輸出 ~600 tokens 即可，留 buffer 給 disclaimer 與 watchlist 段 |
 | `response_format` | `{ "type": "json_object" }` | 強制 JSON 輸出 |
 
-**預估成本**：約 $0.001 USD / 次（NT$ 0.03）。每月 22 個交易日 ≈ NT$ 0.7。
+**預估成本（tiktoken 精確算）**：約 $0.0004 USD / 次。每月 22 個交易日 ≈ $0.009 USD（約 NT$ 0.3）。
 
 ---
 

@@ -293,7 +293,7 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 5000,
-      "notes": "AI 摘要引擎。要點：\n• 用 gpt-4o-mini（30× 便宜於 4o，結構化任務夠用）\n• temperature 0.3 讓每天訊息有變化但不漂移\n• response_format 強制 JSON\n• 系統訊息嵌入合規規則（不可改不可移）\n• 改 prompt → 同步改 prompts/summary-prompt.md\n\n【需要 Credentials】\nOpenAI API key（platform.openai.com 申請，free tier 即可，每月成本約 NT$ 0.7）。"
+      "notes": "AI 摘要引擎。要點：\n• 用 gpt-4o-mini（30× 便宜於 4o，結構化任務夠用）\n• temperature 0.3 讓每天訊息有變化但不漂移\n• response_format 強制 JSON\n• 系統訊息嵌入合規規則（不可改不可移）\n• 改 prompt → 同步改 prompts/summary-prompt.md\n\n【需要 Credentials】\nOpenAI API key（platform.openai.com 申請，free tier 即可，每月成本約 NT$ 0.3）。"
     },
     {
       "id": "compose-message",
@@ -380,7 +380,7 @@
         -136
       ],
       "parameters": {
-        "content": "## 🤖 OpenAI 摘要\n\n### Credential 設定\n\n1. `https://platform.openai.com/api-keys` 建一把 API key\n2. n8n → Credentials → New → 找 **OpenAI** → 貼上 → Save\n3. 回到本 node 的 Credential 下拉選剛建的\n\n### 成本估算\n\n- 模型：`gpt-4o-mini`\n- 每次執行 ≈ **$0.001 USD**\n- 月費（每交易日 1 次 × 22 日）≈ **$0.022**\n- 建議帳戶儲值 $5 USD 起跳\n\n### 出錯時\n\n- `401 Unauthorized` → API key 錯，重貼\n- `429 quota` → 帳戶沒儲值或超限\n- 紅框 typeVersion → n8n 版本過舊，升級到 1.40+\n",
+        "content": "## 🤖 OpenAI 摘要\n\n### Credential 設定\n\n1. `https://platform.openai.com/api-keys` 建一把 API key\n2. n8n → Credentials → New → 找 **OpenAI** → 貼上 → Save\n3. 回到本 node 的 Credential 下拉選剛建的\n\n### 成本估算（tiktoken 精確算）\n\n- 模型：`gpt-4o-mini`\n- 每次執行 ≈ **$0.0004 USD**\n- 月費（每交易日 1 次 × 22 日）≈ **$0.009 USD**（約 NT$ 0.3）\n- 建議帳戶儲值 $5 USD 起跳（約可跑 1 年以上）\n\n### 出錯時\n\n- `401 Unauthorized` → API key 錯，重貼\n- `429 quota` → 帳戶沒儲值或超限\n- 紅框 typeVersion → n8n 版本過舊，升級到 1.40+\n",
         "height": 400,
         "width": 320,
         "color": 6

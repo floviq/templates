@@ -61,5 +61,5 @@ TERMINATION — 授權終止
 
 ================================================================
 
-For licensing questions: hello@floviq.com
+For licensing questions: support@floviq.tw
 License v1.0 (effective 2026-04-27, applies to floviq pre-market-briefing v0.1.0-free and later free editions)

@@ -21,9 +21,9 @@ Released: 2026-04-29
 
 ## Cost Estimate
 
-- OpenAI gpt-4o-mini：≈ $0.001 USD / 次執行
-- 月費（每交易日 1 次 × 22 交易日）：**≈ $0.022 USD**（約 NT$ 0.7）
-- OpenAI 帳戶最低儲值 $5 USD（可用約 2 年）
+- OpenAI gpt-4o-mini：≈ $0.0004 USD / 次執行（tiktoken 精確算）
+- 月費（每交易日 1 次 × 22 交易日）：**≈ $0.009 USD**（約 NT$ 0.3）
+- OpenAI 帳戶最低儲值 $5 USD（可用 1 年以上）
 
 ---
 
