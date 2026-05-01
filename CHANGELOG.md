@@ -8,7 +8,20 @@
 - 同版本內**純文字 / metadata 修正**（cost 數字、email、typo、錯字）= patch，直接改既有目錄並重產 zip + sha256，不另開 folder
 - Workflow JSON 內 node 邏輯 / schema / 排程 / 推播格式變動 = bump 版本，新 folder
 
-每筆變動格式：日期 · `template/version` · 變動類型 · 摘要
+**Entry 格式**（自 2026-05-01 起，舊 entry 不回頭重寫）：
+
+```
+## YYYY-MM-DD
+
+- `001-pre-market-briefing/v1.0.0-paid` · type
+  - 變動 1
+  - 變動 2
+  - 變動 3
+  - 客戶影響（譬如「已部署客戶無需動作」）
+  - 詳見 `001-pre-market-briefing/v1.0.0-paid/RELEASE-NOTES.md`
+```
+
+`type` ∈ { `initial release` / `patch` / `version bump` / `deprecated` }。每個 fix 一條 bullet，不串成 prose 句子。
 
 ---
 
