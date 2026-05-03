@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/floviq-logo.png" alt="floviq" width="120" />
+  <img src="./assets/floviq-logo-no-bg.png" alt="floviq" width="120" />
 </p>
 
 # floviq · 台股盤前情報推播（Free 版）
