@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./001-pre-market-briefing/v0.1.1-free/assets/floviq-logo.png" alt="floviq" width="120" />
+</p>
+
 # floviq · n8n workflow templates
 
 > 開源的 n8n workflow templates 集合 — 給台股 / 投資族群的自動化工具

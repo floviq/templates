@@ -1,4 +1,12 @@
+<p align="center">
+  <img src="./assets/floviq-logo.png" alt="floviq" width="120" />
+</p>
+
 # floviq · 台股盤前情報推播（Free 版）
+
+<p align="center">
+  <img src="./assets/preview-cover-1280x640.png" alt="floviq 台股盤前情報推播 — preview" width="640" />
+</p>
 
 > 每個交易日早上 8:00（Asia/Taipei），自動把昨日法人買賣超 / 漲跌停 / 財經新聞整理成一則 AI 摘要訊息，推到你的 Telegram。30 秒讀完，通勤滑完就上班。
 
