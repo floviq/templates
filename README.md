@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="./001-pre-market-briefing/v0.1.1-free/assets/floviq-logo.png" alt="floviq" width="120" />
+  <img src="./assets/floviq-logo.png" alt="floviq" width="120" />
+</p>
+
+<p align="center">
+  <img src="./assets/floviq-cover-1280x640.png" alt="floviq · n8n workflow templates" width="800" />
 </p>
 
 # floviq · n8n workflow templates
