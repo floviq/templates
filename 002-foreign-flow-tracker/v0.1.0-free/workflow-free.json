@@ -1,0 +1,254 @@
+{
+  "name": "floviq · 002-foreign-flow-tracker (free)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Taipei"
+  },
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "notes": "排程：每週一 08:00 (Asia/Taipei) 自動觸發，推送上週外資進出週報。要改時間：編 cron expression（格式：秒 分 時 日 月 週）。先手動 Execute 跑通再開 active。"
+    },
+    {
+      "id": "config-node",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 300],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "telegramChatId",
+              "name": "telegramChatId",
+              "value": "REPLACE_ON_IMPORT",
+              "type": "string"
+            },
+            {
+              "id": "topN",
+              "name": "topN",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "id": "consecutiveThreshold",
+              "name": "consecutiveThreshold",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "holidaySkipList",
+              "name": "holidaySkipList",
+              "value": "20260101,20260227,20260228,20260403,20260404,20260501,20260620,20260929,20261010,20270101",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "📝 設定區（必填 telegramChatId）\n\n【欄位】\n• telegramChatId：Telegram 推播目標 chat.id（必填，數字字串）\n• topN：淨買超 / 淨賣超顯示前幾名（預設 5，建議 3-10）\n• consecutiveThreshold：連續同方向天數門檻（預設 3，建議 2-5）\n• holidaySkipList：國定假日清單，逗號分隔 YYYYMMDD（預設 2026 全年 + 2027/1/1）\n\n【bot token 與 chat.id 怎麼拿】\n• 對 BotFather 送 /newbot 取 token；token 走 Credentials 不放這\n• 加 bot 為朋友後，訪 https://api.telegram.org/bot<TOKEN>/getUpdates 找 chat.id\n\n📌 環境提醒\nself-host 用戶：env 變數從 docker-compose 或 .env 設定（如有需要）\nn8n cloud 用戶：env 變數從 Settings → Variables 設定\n兩者操作位置不同但欄位名稱一樣"
+    },
+    {
+      "id": "calc-last-week-days",
+      "name": "Calc Last Week Days",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// 算出上週一 ~ 上週五 5 個交易日，跳國定假日。\n// 今天通常是週一 trigger，上週一 = today - 7 天。\n// 假日 list 從 Config node 拿（避免硬編碼）。\n\nconst config = $('Config').first().json;\nconst skipList = String(config.holidaySkipList || '').split(',').map(s => s.trim()).filter(Boolean);\n\nconst now = $now;\nconst lastMonday = now.minus({ days: 7 });\n\nconst items = [];\nfor (let i = 0; i < 5; i++) {\n  const d = lastMonday.plus({ days: i });\n  const yyyymmdd = d.toFormat('yyyyLLdd');\n  if (!skipList.includes(yyyymmdd)) {\n    items.push({ json: { tradingDate: yyyymmdd } });\n  }\n}\n\nif (items.length === 0) {\n  // 整週皆假日（極罕見，例：春節週）→ 推送空週說明\n  return [{ json: { tradingDate: null, emptyWeek: true } }];\n}\n\nreturn items;\n"
+      },
+      "notes": "計算上週一 ~ 上週五 5 個交易日。\n\n邏輯：\n• 今天 (週一 08:00 trigger) 往回算 7 天 = 上週一\n• 依序加 0~4 天 = 上週一/二/三/四/五\n• 比對 Config 內 holidaySkipList，命中則 skip\n• 整週空（春節連假）→ 推送空週訊息\n\n下游 HTTP T86 會自動 loop 每個 trading date 跑 1 次 request。"
+    },
+    {
+      "id": "http-t86",
+      "name": "HTTP T86",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.twse.com.tw/rwd/zh/fund/T86",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ $json.tradingDate }}"
+            },
+            {
+              "name": "selectType",
+              "value": "ALL"
+            },
+            {
+              "name": "response",
+              "value": "json"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; n8n-workflow)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "notes": "抓證交所 T86 三大法人買賣超日報。\n\n• 每個 trading date 跑 1 次 GET\n• n8n 預設行為：input array → 自動 per-item 執行 = 5 個 trading date 跑 5 次\n• 假日 / 颱風休市日 → response.stat 會回「很抱歉,沒有符合條件的資料!」，下游 Aggregate 會視為 0-row 跳過\n• 公開資料無需認證"
+    },
+    {
+      "id": "aggregate",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// 聚合上週 5 天 (或 < 5 天) T86 資料 → 外資 net buy/sell 切片\n// 外資定義：「外陸資（不含外資自營商）」(T86 idx 4)\n//   idx 2 = 外陸資買進股數(不含外資自營商)\n//   idx 3 = 外陸資賣出股數(不含外資自營商)\n//   idx 4 = 外陸資買賣超股數(不含外資自營商)  ← 即 net，本工具使用欄位\n// T86 數字單位：股 (1 張 = 1000 股)，所以 股 / 1000 = 張\n// 顯示用「千張」單位 → 股 / 1000 / 1000 = 千張，與一般散戶熟悉的單位對齊\n\nconst config = $('Config').first().json;\nconst topN = Number(config.topN) || 5;\nconst threshold = Number(config.consecutiveThreshold) || 3;\n\nconst days = $input.all();\n\n// 空週 fallback (Calc 標 emptyWeek)\nif (days.length === 1 && days[0].json.emptyWeek === true) {\n  return [{\n    json: {\n      emptyWeek: true,\n      dataRange: '上週',\n      dayCount: 0,\n      topBuy: [], topSell: [], consecutiveBuy: [], consecutiveSell: []\n    }\n  }];\n}\n\nconst acc = {};\nconst validDays = [];\n\ndays.forEach((day, dayIdx) => {\n  const resp = day.json;\n  if (!resp || resp.stat !== 'OK' || !Array.isArray(resp.data)) {\n    // 該天無資料（颱風 / 補登失敗 / 假日漏標）→ skip 該天\n    return;\n  }\n  validDays.push({ idx: dayIdx, title: resp.title });\n\n  resp.data.forEach(row => {\n    const code = String(row[0] || '').trim();\n    const name = String(row[1] || '').trim();\n    if (!code) return;\n\n    // idx 4 = 外陸資買賣超股數(不含外資自營商) · 含千分位 comma 需 strip\n    const foreignNet = parseInt(String(row[4] || '0').replace(/,/g, ''), 10) || 0;\n\n    if (!acc[code]) acc[code] = { code, name, daily: {}, weekly: 0 };\n    acc[code].daily[dayIdx] = foreignNet;\n    acc[code].weekly += foreignNet;\n  });\n});\n\nconst all = Object.values(acc);\n\n// 4 切片\nconst topBuy = [...all]\n  .filter(s => s.weekly > 0)\n  .sort((a, b) => b.weekly - a.weekly)\n  .slice(0, topN);\n\nconst topSell = [...all]\n  .filter(s => s.weekly < 0)\n  .sort((a, b) => a.weekly - b.weekly)\n  .slice(0, topN);\n\n// 連續 ≥ threshold 日 → 必須在所有 valid day 都同方向 (不能跳天)\n// 邏輯：擷取每檔在 valid day idx 上的 daily 值，全 > 0 = 連買\n// 再依週淨額絕對值排序、截 topN，避免訊息過長 / 噪音淹沒重點\nconst consecutiveBuy = all.filter(s => {\n  if (validDays.length < threshold) return false;\n  return validDays.every(d => (s.daily[d.idx] || 0) > 0);\n}).sort((a, b) => b.weekly - a.weekly).slice(0, topN);\n\nconst consecutiveSell = all.filter(s => {\n  if (validDays.length < threshold) return false;\n  return validDays.every(d => (s.daily[d.idx] || 0) < 0);\n}).sort((a, b) => a.weekly - b.weekly).slice(0, topN);\n\n// data range 從第一天 / 最後一天 title 抽\nconst parseTitle = (t) => {\n  if (!t) return null;\n  const m = String(t).match(/(\\d+)年(\\d+)月(\\d+)日/);\n  if (!m) return null;\n  return `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')}`;\n};\nconst firstDate = parseTitle(validDays[0]?.title);\nconst lastDate = parseTitle(validDays[validDays.length - 1]?.title);\nconst dataRange = (firstDate && lastDate)\n  ? `${firstDate} ~ ${lastDate}`\n  : '上週';\n\nreturn [{\n  json: {\n    emptyWeek: false,\n    dataRange,\n    dayCount: validDays.length,\n    threshold,\n    topBuy, topSell, consecutiveBuy, consecutiveSell\n  }\n}];\n"
+      },
+      "notes": "聚合上週 5 個交易日 T86 → 4 切片：\n• topBuy：外資週淨買超前 N 名 (依 Config.topN)\n• topSell：外資週淨賣超前 N 名\n• consecutiveBuy：所有 valid 交易日都淨買的個股\n• consecutiveSell：所有 valid 交易日都淨賣的個股\n\n外資定義 = 證交所 T86「外陸資（不含外資自營商）」(idx 4 欄位)\n單位轉換：股 → 千張 (1 張 = 1000 股，再 / 1000 = 千張)"
+    },
+    {
+      "id": "format",
+      "name": "Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1240, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// 4 切片 → Telegram 純文字\n// 不用 parse_mode（避免台股名稱含括號的 escape 問題）\n// disclaimer 強制 append（不可移除）\n\nconst data = $input.first().json;\n\n// 空週訊息\nif (data.emptyWeek === true) {\n  const text = [\n    '📅 上週外資進出週報',\n    '',\n    '上週無交易日資料（連假休市）',\n    '',\n    '📍 資料來源: 證交所 T86 三大法人買賣超日報',\n    '',\n    '※ 本資訊僅供參考,不構成投資建議,投資請自行評估風險'\n  ].join('\\n');\n  return [{ json: { messageText: text } }];\n}\n\n// 股 → 千張 (1 張 = 1000 股，整週累積 / 1000 / 1000 = 千張)\nconst toThousandLots = (shares) => Math.round(shares / 1000 / 1000);\n\nconst fmtBuy = (items) => items.length > 0\n  ? items.map((it, i) => {\n      const k = toThousandLots(it.weekly);\n      return `${i + 1}. ${it.name} (${it.code})   +${k.toLocaleString()} 千張`;\n    }).join('\\n')\n  : '(本週無)';\n\nconst fmtSell = (items) => items.length > 0\n  ? items.map((it, i) => {\n      const k = toThousandLots(it.weekly);\n      return `${i + 1}. ${it.name} (${it.code})   ${k.toLocaleString()} 千張`;\n    }).join('\\n')\n  : '(本週無)';\n\nconst fmtConsec = (items) => items.length > 0\n  ? items.map(it => {\n      const days = Object.keys(it.daily).length;\n      return `- ${it.name} (${it.code})   ${days} 日連續`;\n    }).join('\\n')\n  : '(本週無)';\n\nconst topBuyCount = data.topBuy.length;\nconst topSellCount = data.topSell.length;\nconst threshold = data.threshold || 3;\n\nconst text = [\n  `📅 ${data.dataRange} 外資進出週報`,\n  '',\n  `🔼 外資淨買超 Top ${topBuyCount}（上週累計）`,\n  fmtBuy(data.topBuy),\n  '',\n  `🔽 外資淨賣超 Top ${topSellCount}（上週累計）`,\n  fmtSell(data.topSell),\n  '',\n  `🟢 連續買超 ≥ ${threshold} 日`,\n  fmtConsec(data.consecutiveBuy),\n  '',\n  `🔴 連續賣超 ≥ ${threshold} 日`,\n  fmtConsec(data.consecutiveSell),\n  '',\n  `📊 資料區間: ${data.dataRange} · ${data.dayCount} 個交易日`,\n  '📍 資料來源: 證交所 T86 三大法人買賣超日報',\n  '※「外資」= 外陸資（境外法人 + 陸資）· 不含外資自營商部位',\n  '',\n  '※ 本資訊僅供參考,不構成投資建議,投資請自行評估風險'\n].join('\\n');\n\nreturn [{ json: { messageText: text } }];\n"
+      },
+      "notes": "把 4 切片格式化成 Telegram 純文字訊息。\n\n• 單位：千張 (1 張 = 1000 股)\n• 風險免責聲明強制 append\n• 「外資」定義在 footer 註明：含陸資、不含外資自營商\n• 不用 markdown 格式（避免台股名稱中文括號 escape 問題）"
+    },
+    {
+      "id": "telegram-send",
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1440, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Config').first().json.telegramChatId }}",
+        "text": "={{ $json.messageText }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ON_IMPORT",
+          "name": "Telegram Bot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "notes": "推到 Telegram。需要：\n(1) 上方 Credentials 連到你的 Telegram Bot credential\n(2) chat_id 從 Config node 讀\n發純文字 + emoji，不設 parse_mode（避免台股名稱含括號的 escape 問題）。"
+    },
+    {
+      "id": "sticky-overview",
+      "name": "說明 · 整體",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [150, -180],
+      "parameters": {
+        "content": "## 📊 floviq · 外資進出週報（Free）\n\n每週一早上 08:00 自動抓上週 5 個交易日的證交所 T86 → 聚合外資（含陸資、不含外資自營商）週淨買賣超 → 推送到你的 Telegram。\n\n**4 個切片**：\n- 🔼 外資淨買超 Top N\n- 🔽 外資淨賣超 Top N\n- 🟢 連續買超 ≥ N 日\n- 🔴 連續賣超 ≥ N 日\n\n**節奏**：每週一 08:00（Asia/Taipei）\n**通路**：Telegram（5 分鐘設定）\n**資料**：證交所 T86 公開資料 · 0 個股建議 · 純歷史聚合\n\n---\n\n**setup 5 步驟**：\n1. 在 BotFather 建一個 Telegram bot，拿 token\n2. n8n → Credentials → Telegram → 貼 token\n3. 點下方 Config node → 填 telegramChatId\n4. 點 Schedule node → 確認 08:00 是你要的時間（可改）\n5. 右上 Execute 跑一次測試 → Telegram 收到訊息 → 開 active\n\n---\n\n**換時間**：點 Schedule node 改 cron expression\n**改顯示前幾名**：點 Config node 改 topN\n**換通路（LINE / Discord）**：規劃中",
+        "width": 460,
+        "height": 480
+      }
+    },
+    {
+      "id": "sticky-config",
+      "name": "說明 · Config",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [340, 420],
+      "parameters": {
+        "content": "## ⚙️ Config 設定\n\n### 必填\n\n- **telegramChatId**：你的 Telegram chat ID（私訊 bot 後訪問 `https://api.telegram.org/bot<TOKEN>/getUpdates` → `result[0].message.chat.id`）\n\n### 可調\n\n- **topN**：淨買超 / 淨賣超顯示前幾名（預設 5，建議 3-10）\n- **consecutiveThreshold**：連續同方向天數門檻（預設 3，建議 2-5）\n- **holidaySkipList**：國定假日清單，逗號分隔 YYYYMMDD\n  - 預設已含 2026 全年 + 2027/1/1\n  - 每年年底自己加新一年的清單\n  - 颱風日不在這裡（程式自動偵測休市日跳過）\n\n### 為什麼 token 不在 Config\n\nToken 走 n8n Credentials（加密儲存），chat_id 是一般 id 放 Config plain 即可。",
+        "width": 320,
+        "height": 420
+      }
+    },
+    {
+      "id": "sticky-twse",
+      "name": "說明 · TWSE T86",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [740, -180],
+      "parameters": {
+        "content": "## 📡 TWSE T86 資料\n\n證交所「三大法人買賣超日報」公開資料。\n\n### 本工具用的欄位\n\n**外陸資買賣超股數（不含外資自營商）** = T86 第 5 個欄位（idx 4）\n\n這個是市場常稱的「外資」，包含境外法人 + 陸資，但不含外資自營商部位。\n\n### 資料節奏\n\n- 該交易日 17:30 公布\n- 本 workflow 在週一 08:00 跑，抓的是上週一~上週五 5 天，發布緩衝充足\n- 假日 / 颱風 / 補登失敗 → API 回「很抱歉，沒有符合條件的資料」，程式自動跳過該天\n\n### Rate Limit\n\n無官方公告。本工具一週 5 個 sequential request（n8n 預設行為），不會踩限流。",
+        "width": 340,
+        "height": 380
+      }
+    },
+    {
+      "id": "sticky-telegram",
+      "name": "說明 · Telegram",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1340, -180],
+      "parameters": {
+        "content": "## 💬 Telegram 推播\n\n### Credential 設定\n\n1. Telegram 開啟 BotFather → `/newbot` → 拿到 token\n2. n8n 左側 → Credentials → New → Telegram → 貼 token → 存\n3. 點本 node → Credentials 欄選剛剛建的 credential\n\n### 訊息規格\n\n- 純文字 + emoji，不設 parse_mode\n- 為什麼？台股名稱常含括號（例：「群益台灣精選高息」），用 Markdown 會 escape 出問題\n- 長度約 500-1000 字元，遠在 Telegram 4096 上限內\n\n### 額度\n\nTelegram personal bot 無 rate limit，1 週推 1 則完全在 quota 內。",
+        "width": 320,
+        "height": 360
+      }
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Calc Last Week Days", "type": "main", "index": 0 }]]
+    },
+    "Calc Last Week Days": {
+      "main": [[{ "node": "HTTP T86", "type": "main", "index": 0 }]]
+    },
+    "HTTP T86": {
+      "main": [[{ "node": "Aggregate", "type": "main", "index": 0 }]]
+    },
+    "Aggregate": {
+      "main": [[{ "node": "Format", "type": "main", "index": 0 }]]
+    },
+    "Format": {
+      "main": [[{ "node": "Telegram", "type": "main", "index": 0 }]]
+    }
+  },
+  "_meta": {
+    "product": "floviq · 外資進出週報",
+    "edition": "free",
+    "version": "0.1.0-free",
+    "license": "personal-use-only",
+    "homepage": "https://floviq.tw"
+  }
+}
